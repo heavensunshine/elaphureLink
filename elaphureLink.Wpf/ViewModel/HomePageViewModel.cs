@@ -10,7 +10,7 @@ using Microsoft.Toolkit.Mvvm;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 using Microsoft.Toolkit.Mvvm.Messaging;
-
+using System.Collections.ObjectModel;
 
 using elaphureLink.Wpf.Pages;
 using elaphureLink.Wpf.Core;
@@ -28,6 +28,7 @@ namespace elaphureLink.Wpf.ViewModel
         public HomePageViewModel(ISettingsService settingsService)
         {
             // design time
+            ScanDevicesCommand = new AsyncRelayCommand(ScanDevicesAsync);
 
             _SettingsService = settingsService;
 
@@ -96,6 +97,40 @@ namespace elaphureLink.Wpf.ViewModel
             // install driver
             await InstallDriverCommand.ExecuteAsync(driverPath);
         }
+        private async Task ScanDevicesAsync()
+        {
+            if (IsScanning)
+                return;
+
+            try
+            {
+                IsScanning = true;
+                DiscoveredDevices.Clear();
+                SelectedDevice = null;
+
+                // === UDP 广播扫描 ===
+                var devices = await UdpDiscovery.ScanDevicesAsync(timeoutMs: 800);
+
+                foreach (var d in devices)
+                    DiscoveredDevices.Add(d);
+
+                OnPropertyChanged(nameof(HasDiscoveredDevices));
+
+                // 只发现一个设备时，自动选中
+                if (DiscoveredDevices.Count == 1)
+                    SelectedDevice = DiscoveredDevices[0];
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Device discovery failed");
+            }
+            finally
+            {
+                IsScanning = false;
+                OnPropertyChanged(nameof(HasDiscoveredDevices));
+            }
+        }
+
 
         private async Task InstallDriverAsync()
         {
@@ -122,6 +157,37 @@ namespace elaphureLink.Wpf.ViewModel
         /// <summary>
         /// Members
         /// </summary>
+        // =======================
+        // Device Discovery
+        // =======================
+        public IAsyncRelayCommand ScanDevicesCommand { get; }
+
+        public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; }
+            = new ObservableCollection<DiscoveredDevice>();
+
+        private DiscoveredDevice _selectedDevice;
+        public DiscoveredDevice SelectedDevice
+        {
+            get => _selectedDevice;
+            set
+            {
+                SetProperty(ref _selectedDevice, value);
+                if (value != null)
+                {
+                    deviceAddress = value.Ip;
+                }
+            }
+        }
+
+
+        private bool _isScanning;
+        public bool IsScanning
+        {
+            get => _isScanning;
+            private set => SetProperty(ref _isScanning, value);
+        }
+
+        public bool HasDiscoveredDevices => DiscoveredDevices.Count > 0 && !IsScanning;
 
 
         private string _driverPath;
