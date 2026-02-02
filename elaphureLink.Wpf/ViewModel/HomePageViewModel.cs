@@ -203,7 +203,7 @@ namespace elaphureLink.Wpf.ViewModel
         //    get => IsChecked_;
         //    set => SetProperty(ref IsChecked_, value);
         //}
-
+ 
         //private bool IsProxyStarting_ = false;
         //private bool _showHomeProgressStr = false;
     }
